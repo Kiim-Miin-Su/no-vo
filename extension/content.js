@@ -1,9 +1,9 @@
-// content.js - Notion 페이지에서 실행되는 메인 스크립트
+// content.js - 수정된 버전
 class NotionViewsTracker {
     constructor() {
-        this.apiEndpoint = 'https://web-production-ee075.up.railway.app'; // 끝 슬래시 없이
+        this.apiEndpoint = 'https://web-production-ee075.up.railway.app';
         this.apiKey = '';
-        this.databaseId = ''; // ✅ 원본 DB ID 저장
+        this.databaseId = '';
         this.trackedPages = new Set();
         this.isEnabled = true;
 
@@ -13,25 +13,18 @@ class NotionViewsTracker {
     async init() {
         await this.loadSettings();
 
-        // settings 업데이트 메시지 수신
         chrome.runtime.onMessage.addListener((msg) => {
             if (msg?.action === 'settingsUpdated' && msg.settings) {
                 this.apiEndpoint = this.normalizeEndpoint(msg.settings.apiEndpoint || this.apiEndpoint);
                 this.apiKey = msg.settings.apiKey || this.apiKey;
                 this.isEnabled = msg.settings.isEnabled ?? this.isEnabled;
                 this.databaseId = msg.settings.databaseId || this.databaseId;
-                // 설정 바뀌었으면 즉시 체크
                 this.checkCurrentPage();
             }
         });
 
-        // 페이지 로드 시 즉시 확인
         this.checkCurrentPage();
-
-        // URL 변경 감지 (Notion은 SPA)
         this.observeUrlChanges();
-
-        // 클릭 이벤트 감지
         this.observeClicks();
 
         console.log('🎯 Notion Views Tracker 활성화됨');
@@ -39,7 +32,6 @@ class NotionViewsTracker {
 
     normalizeEndpoint(ep) {
         if (!ep) return '';
-        // trailing slash 제거
         return ep.replace(/\/+$/, '');
     }
 
@@ -50,7 +42,6 @@ class NotionViewsTracker {
             if (result.apiKey) this.apiKey = result.apiKey;
             if (result.isEnabled !== undefined) this.isEnabled = result.isEnabled;
 
-            // DB 링크가 있다면 DB ID 파싱
             if (result.databaseId) {
                 this.databaseId = result.databaseId;
             } else if (result.databaseLink) {
@@ -76,33 +67,53 @@ class NotionViewsTracker {
         }
     }
 
+    // ✅ 수정된 Page ID 추출 함수
     extractPageId(url) {
-        // Notion 페이지 URL에서 UUID(with hyphen) 추출
-        const match = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+        // 1. URL 파라미터에서 p= 값 우선 확인
+        try {
+            const urlObj = new URL(url);
+            const pageIdFromParam = urlObj.searchParams.get('p');
+
+            if (pageIdFromParam && /^[a-f0-9]{32}$/i.test(pageIdFromParam)) {
+                // 32자리를 하이픈 포함 형태로 변환
+                return `${pageIdFromParam.slice(0, 8)}-${pageIdFromParam.slice(8, 12)}-${pageIdFromParam.slice(12, 16)}-${pageIdFromParam.slice(16, 20)}-${pageIdFromParam.slice(20)}`;
+            }
+        } catch (error) {
+            // URL 파싱 실패 시 무시하고 계속
+        }
+
+        // 2. 기존 방식으로 폴백 (32자리 및 하이픈 포함 UUID)
+        const match = url.match(/([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
         return match ? match[1] : null;
     }
 
     extractDatabaseIdFromUrl(url) {
         if (!url) return null;
-        // DB 링크에도 UUID가 포함됨. (원본 DB 페이지/공유 링크에서 추출)
         const match = url.match(/([a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
         if (!match) return null;
         let id = match[1].toLowerCase();
-        // 32자리면 하이픈 없는 형태 → 그대로 사용해도 되지만 통일성을 위해 하이픈 포함 UUID로 변환 시도
         if (/^[a-f0-9]{32}$/.test(id)) {
             id = `${id.slice(0, 8)}-${id.slice(8, 12)}-${id.slice(12, 16)}-${id.slice(16, 20)}-${id.slice(20)}`;
         }
         return id;
     }
 
+    // ✅ 수정된 DB 아이템 감지 함수
     isPossiblyDbItem() {
-        // 안전하게: URL이 notion이고, 페이지에 속성 UI가 있으면 DB 행일 확률이 큼
         if (!(location.hostname.includes('notion.so') || location.hostname.includes('notion.site') || location.hostname.includes('notion.com'))) {
             return false;
         }
-        // 페이지 속성 영역 감지(간접적)
-        const propsPanel = document.querySelector('[data-testid="properties"]') || document.querySelector('[placeholder="Add a property"]');
-        return !!propsPanel;
+
+        // 더 정확한 선택자들 사용
+        const indicators = [
+            document.querySelector('[data-testid="properties"]'),
+            document.querySelector('[placeholder="Add a property"]'),
+            document.querySelector('.notion-collection-item'), // 이것이 현재 페이지에서 발견됨
+            document.querySelector('[role="row"]'), // 이것도 발견됨
+            document.querySelector('.notion-page-content .notion-collection-item')
+        ];
+
+        return indicators.some(el => !!el);
     }
 
     async trackView(pageId) {
@@ -113,8 +124,9 @@ class NotionViewsTracker {
             if (this.apiKey) headers['X-API-Key'] = this.apiKey;
 
             const body = { page_id: pageId };
-            // ✅ DB ID를 함께 전송(서버가 원본 DB 일치 여부 검증 가능)
             if (this.databaseId) body.database_id = this.databaseId;
+
+            console.log('🚀 조회수 추적 시작:', { pageId, apiEndpoint: this.apiEndpoint });
 
             const response = await fetch(`${this.apiEndpoint}/increment_views`, {
                 method: 'POST',
@@ -129,9 +141,7 @@ class NotionViewsTracker {
                 console.log('🎯 조회수 추적 성공:', result);
                 this.displayViewCount(result.new_views);
 
-                // 마지막 추적 시각 저장(옵션)
                 await chrome.storage.sync.set({ lastTracked: new Date().toISOString() });
-
             } else {
                 const errText = await response.text().catch(() => '');
                 console.error('조회수 추적 실패:', response.status, errText);
@@ -178,7 +188,6 @@ class NotionViewsTracker {
         document.addEventListener('click', (event) => {
             const target = event.target.closest('a');
             if (target && target.href && target.href.includes('notion')) {
-                // 클릭 후 페이지 전환 -> checkCurrentPage가 처리
                 setTimeout(() => this.checkCurrentPage(), 1000);
             }
         });

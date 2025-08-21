@@ -356,20 +356,23 @@ def delete_user(api_key: str, x_api_key: Optional[str] = Header(None)):
         "message": "계정이 성공적으로 삭제되었습니다"
     }
 
-# 에러 핸들러
+# 에러 핸들러 (JSONResponse로 수정)
 @app.exception_handler(404)
-async def not_found_handler(request, exc):
-    return {
-        "error": "엔드포인트를 찾을 수 없습니다",
-        "available_endpoints": [
-            "GET /",
-            "POST /register", 
-            "POST /increment_views",
-            "GET /popular_commands",
-            "GET /stats",
-            "GET /health"
-        ]
-    }
+async def not_found_handler(request: Request, exc):
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": "엔드포인트를 찾을 수 없습니다",
+            "available_endpoints": [
+                "GET /",
+                "POST /register",
+                "POST /increment_views",
+                "GET /popular_commands",
+                "GET /stats",
+                "GET /health"
+            ]
+        }
+    )
 
 if __name__ == "__main__":
     import uvicorn

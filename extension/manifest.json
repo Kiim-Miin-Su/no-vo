@@ -14,7 +14,10 @@
     "host_permissions": [
       "https://*.notion.so/*",
       "https://*.notion.site/*",
-      "http://127.0.0.1:8000/*"
+      "http://127.0.0.1:8000/*",
+      "https://*.notion.site/*",
+      "https://*.notion.com/*",
+      "https://localhost:8000/*"
     ],
     
     "content_scripts": [

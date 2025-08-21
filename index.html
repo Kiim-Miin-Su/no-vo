@@ -521,18 +521,30 @@
                     </label>
                     <input type="text" id="notionToken" placeholder="ntn_... 또는 secret_..." />
                     <small style="color: #666; font-size: 0.9em;">
+                        <strong>💡 쉬운 방법:</strong>
                         <a href="https://www.notion.so/my-integrations" target="_blank" style="color: #3498db;">Notion
-                            개발자 페이지</a>에서 Integration을 생성하고 토큰을 복사하세요
+                            개발자 페이지</a>에서 Integration을 생성하고 토큰을 복사하세요.<br>
+                        <strong>Integration 연결:</strong> 데이터베이스 페이지에서 "..." → "Add connections" → 만든 Integration 선택
                     </small>
                 </div>
 
                 <div class="form-group">
-                    <label for="databaseId">
-                        🗄️ 데이터베이스 ID (선택사항)
+                    <label for="notionUrl">
+                        🔗 Notion 데이터베이스 링크 (선택사항)
                     </label>
-                    <input type="text" id="databaseId" placeholder="32자리 데이터베이스 ID" />
+                    <input type="text" id="notionUrl" placeholder="https://www.notion.so/your-database-url" />
                     <small style="color: #666; font-size: 0.9em;">
-                        Notion 데이터베이스 URL의 마지막 32자리 (나중에 추가 가능)
+                        Notion 데이터베이스 페이지 URL을 붙여넣으면 자동으로 ID를 추출해드립니다
+                    </small>
+                </div>
+
+                <div class="form-group" style="display: none;" id="extractedIdGroup">
+                    <label for="databaseId">
+                        🗄️ 추출된 데이터베이스 ID
+                    </label>
+                    <input type="text" id="databaseId" readonly style="background: #f8f9fa;" />
+                    <small style="color: #28a745; font-size: 0.9em;">
+                        ✅ URL에서 데이터베이스 ID가 자동으로 추출되었습니다!
                     </small>
                 </div>
 
@@ -602,7 +614,65 @@
             }
         }
 
-        // 사용자 등록
+        // Notion URL에서 데이터베이스 ID 추출
+        function extractDatabaseId(url) {
+            // Notion URL 패턴들:
+            // https://www.notion.so/database-name-32characters
+            // https://notion.so/username/database-name-32characters  
+            // https://username.notion.site/database-name-32characters
+
+            const patterns = [
+                // 일반적인 32자리 ID 패턴
+                /([a-f0-9]{8}[a-f0-9]{4}[a-f0-9]{4}[a-f0-9]{4}[a-f0-9]{12})/i,
+                // 하이픈이 있는 패턴
+                /([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i
+            ];
+
+            for (const pattern of patterns) {
+                const match = url.match(pattern);
+                if (match) {
+                    // 하이픈 제거하고 표준 형식으로 변환
+                    const id = match[1].replace(/-/g, '');
+                    return `${id.slice(0, 8)}-${id.slice(8, 12)}-${id.slice(12, 16)}-${id.slice(16, 20)}-${id.slice(20, 32)}`;
+                }
+            }
+            return null;
+        }
+
+        // URL 입력 시 자동 추출
+        document.getElementById('notionUrl').addEventListener('input', function (e) {
+            const url = e.target.value.trim();
+            const extractedIdGroup = document.getElementById('extractedIdGroup');
+            const databaseIdInput = document.getElementById('databaseId');
+
+            if (!url) {
+                extractedIdGroup.style.display = 'none';
+                databaseIdInput.value = '';
+                return;
+            }
+
+            const databaseId = extractDatabaseId(url);
+
+            if (databaseId) {
+                databaseIdInput.value = databaseId;
+                extractedIdGroup.style.display = 'block';
+
+                // 성공 애니메이션
+                extractedIdGroup.style.animation = 'slideIn 0.3s ease';
+            } else {
+                extractedIdGroup.style.display = 'none';
+                databaseIdInput.value = '';
+
+                // URL이 있지만 ID를 찾을 수 없는 경우 힌트 표시
+                if (url.length > 10) {
+                    const urlInput = e.target;
+                    urlInput.style.borderColor = '#f39c12';
+                    setTimeout(() => {
+                        urlInput.style.borderColor = '#e0e0e0';
+                    }, 2000);
+                }
+            }
+        });
         async function registerUser() {
             const notionToken = document.getElementById('notionToken').value.trim();
             const databaseId = document.getElementById('databaseId').value.trim();

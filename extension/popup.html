@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            width: 350px;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        h2 {
+            margin: 0 0 5px 0;
+            color: #2c3e50;
+            font-size: 18px;
+        }
+
+        .version {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .setting {
+            margin: 15px 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 13px;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+
+        .toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="checkbox"] {
+            transform: scale(1.2);
+        }
+
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin: 8px 0;
+            font-size: 13px;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            text-align: center;
+            font-size: 12px;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f1aeb5;
+        }
+
+        .status.info {
+            background: #cce7ff;
+            color: #0c5460;
+            border: 1px solid #b3d9ff;
+        }
+
+        .stats {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+
+        .links {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+            text-align: center;
+        }
+
+        .links a {
+            color: #3498db;
+            text-decoration: none;
+            font-size: 12px;
+            margin: 0 5px;
+        }
+
+        .links a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h2>🎯 Notion Views Tracker</h2>
+        <div class="version">v1.0.0</div>
+    </div>
+
+    <div class="setting">
+        <label for="apiEndpoint">API 서버 주소:</label>
+        <input type="text" id="apiEndpoint" placeholder="https://your-api.railway.app">
+    </div>
+
+    <div class="setting">
+        <label for="apiKey">API 키:</label>
+        <input type="text" id="apiKey" placeholder="등록 후 받은 API 키를 입력하세요">
+    </div>
+
+    <div class="setting">
+        <div class="toggle">
+            <label for="isEnabled">추적 활성화:</label>
+            <input type="checkbox" id="isEnabled">
+        </div>
+    </div>
+
+    <button id="saveSettings">⚙️ 설정 저장</button>
+    <button id="testConnection">🔍 연결 테스트</button>
+
+    <div class="stats" id="statsSection" style="display: none;">
+        <div class="stat-item">
+            <span>연결 상태:</span>
+            <span id="connectionStatus">확인 중...</span>
+        </div>
+        <div class="stat-item">
+            <span>마지막 추적:</span>
+            <span id="lastTracked">없음</span>
+        </div>
+    </div>
+
+    <div id="status"></div>
+
+    <div class="links">
+        <a href="https://your-website.com" target="_blank">📖 설정 가이드</a>
+        <a href="https://github.com/yourusername/notion-views-tracker" target="_blank">🐛 문제 신고</a>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>

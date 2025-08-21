@@ -1,0 +1,41 @@
+{
+    "manifest_version": 3,
+    "name": "Notion Views Tracker",
+    "version": "1.0.0",
+    "description": "Notion 데이터베이스 페이지의 조회수를 자동으로 추적합니다",
+    "author": "kiim",
+    "homepage_url": "https://github.com/Kiim-Miin-Su/notion-views-tracker",
+    
+    "permissions": [
+      "activeTab",
+      "storage"
+    ],
+    
+    "host_permissions": [
+      "https://*.notion.so/*",
+      "https://*.notion.site/*",
+      "http://127.0.0.1:8000/*"
+    ],
+    
+    "content_scripts": [
+      {
+        "matches": [
+          "https://*.notion.so/*",
+          "https://*.notion.site/*"
+        ],
+        "js": ["content.js"],
+        "run_at": "document_end"
+      }
+    ],
+    
+    "action": {
+      "default_popup": "popup.html",
+      "default_title": "Notion Views Tracker"
+    },
+    
+    "icons": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  }

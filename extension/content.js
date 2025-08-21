@@ -1,7 +1,7 @@
 // content.js - Notion 페이지에서 실행되는 메인 스크립트
 class NotionViewsTracker {
     constructor() {
-        this.apiEndpoint = 'http://127.0.0.1:8000'; // 실제 배포 주소로 수정
+        this.apiEndpoint = 'https://web-production-ee075.up.railway.app/'; // 실제 배포 주소로 수정
         this.apiKey = '';
         this.trackedPages = new Set();
         this.isEnabled = true;

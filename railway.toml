@@ -1,12 +1,9 @@
 [build]
-builder = "nixpacks"
-buildCommand = "pip install -r requirements.txt"
+builder = "NIXPACKS"
 
 [deploy]
-Start Command: uvicorn main:app --host 0.0.0.0 --port $PORT
-
-[variables]
-PYTHONUNBUFFERED = "1"
-
-[env]
-root = "server"
+startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

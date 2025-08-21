@@ -4,7 +4,7 @@
     "version": "1.0.0",
     "description": "Notion 데이터베이스 페이지의 조회수를 자동으로 추적합니다",
     "author": "kiim",
-    "homepage_url": "https://github.com/Kiim-Miin-Su/notion-views-tracker",
+    "homepage_url": "https://github.com/Kiim-Miin-Su/no-vo",
     
     "permissions": [
       "activeTab",

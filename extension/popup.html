@@ -2,7 +2,7 @@
 <html>
 
 <head>
-    <meta charset="utf-8">
+    <meta charset="utf-8" />
     <style>
         body {
             width: 350px;
@@ -75,7 +75,7 @@
             width: 100%;
             margin: 8px 0;
             font-size: 13px;
-            transition: background 0.3s ease;
+            transition: background .3s ease;
         }
 
         button:hover {
@@ -156,12 +156,19 @@
 
     <div class="setting">
         <label for="apiEndpoint">API 서버 주소:</label>
-        <input type="text" id="apiEndpoint" placeholder="https://web-production-ee075.up.railway.app/">
+        <input type="text" id="apiEndpoint" placeholder="https://web-production-ee075.up.railway.app">
     </div>
 
     <div class="setting">
         <label for="apiKey">API 키:</label>
         <input type="text" id="apiKey" placeholder="등록 후 받은 API 키를 입력하세요">
+    </div>
+
+    <!-- ✅ 원본 DB 링크 입력 -->
+    <div class="setting">
+        <label for="databaseLink">원본 DB 링크(복사한 Database 링크 붙여넣기):</label>
+        <input type="text" id="databaseLink"
+            placeholder="https://www.notion.so/your-db-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
     </div>
 
     <div class="setting">
@@ -174,18 +181,16 @@
     <button id="saveSettings">⚙️ 설정 저장</button>
     <button id="testConnection">🔍 연결 테스트</button>
 
-    <div class="stats" id="statsSection" style="display: none;">
+    <div class="stats" id="statsSection" style="display:none;">
         <div class="stat-item">
-            <span>연결 상태:</span>
-            <span id="connectionStatus">확인 중...</span>
+            <span>연결 상태:</span><span id="connectionStatus">확인 중...</span>
         </div>
         <div class="stat-item">
-            <span>마지막 추적:</span>
-            <span id="lastTracked">없음</span>
+            <span>마지막 추적:</span><span id="lastTracked">없음</span>
         </div>
     </div>
 
-    <div id="status"></div>
+    <div id="status" class="status"></div>
 
     <div class="links">
         <a href="https://your-website.com" target="_blank">📖 설정 가이드</a>

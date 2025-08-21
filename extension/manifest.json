@@ -1,44 +1,38 @@
 {
-    "manifest_version": 3,
-    "name": "Notion Views Tracker",
-    "version": "1.0.0",
-    "description": "Notion 데이터베이스 페이지의 조회수를 자동으로 추적합니다",
-    "author": "kiim",
-    "homepage_url": "https://github.com/Kiim-Miin-Su/no-vo",
-    
-    "permissions": [
-      "activeTab",
-      "storage"
-    ],
-    
-    "host_permissions": [
-      "https://*.notion.so/*",
-      "https://*.notion.site/*",
-      "http://127.0.0.1:8000/*",
-      "https://*.notion.site/*",
-      "https://*.notion.com/*",
-      "https://localhost:8000/*"
-    ],
-    
-    "content_scripts": [
-      {
-        "matches": [
-          "https://*.notion.so/*",
-          "https://*.notion.site/*"
-        ],
-        "js": ["content.js"],
-        "run_at": "document_end"
-      }
-    ],
-    
-    "action": {
-      "default_popup": "popup.html",
-      "default_title": "Notion Views Tracker"
-    },
-    
-    "icons": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+  "manifest_version": 3,
+  "name": "Notion Views Tracker",
+  "version": "1.0.0",
+  "description": "Notion 데이터베이스 페이지의 조회수를 자동으로 추적합니다",
+  "author": "kiim",
+  "homepage_url": "https://github.com/Kiim-Miin-Su/no-vo",
+
+  "permissions": ["activeTab", "storage"],
+
+  "host_permissions": [
+    "https://*.notion.so/*",
+    "https://*.notion.site/*",
+    "https://*.notion.com/*",
+    "https://web-production-ee075.up.railway.app/*",
+    "http://127.0.0.1:8000/*",
+    "https://localhost:8000/*"
+  ],
+
+  "content_scripts": [
+    {
+      "matches": ["https://*.notion.so/*", "https://*.notion.site/*", "https://*.notion.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
     }
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Notion Views Tracker"
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   }
+}

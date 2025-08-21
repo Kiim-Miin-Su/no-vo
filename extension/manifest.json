@@ -6,16 +6,14 @@
   
   "permissions": [
     "storage",
-    "activeTab",
-    "scripting"
+    "activeTab"
   ],
   
   "host_permissions": [
     "https://www.notion.so/*",
     "https://*.notion.so/*",
     "https://notion.so/*",
-    "https://web-production-ee075.up.railway.app/*",
-    "https://*.up.railway.app/*"
+    "https://web-production-ee075.up.railway.app/*"
   ],
   
   "content_scripts": [
@@ -33,16 +31,5 @@
   "action": {
     "default_popup": "popup.html",
     "default_title": "Notion Views Tracker"
-  },
-  
-  "background": {
-    "service_worker": "background.js"
-  },
-  
-  "web_accessible_resources": [
-    {
-      "resources": ["*"],
-      "matches": ["https://www.notion.so/*", "https://*.notion.so/*"]
-    }
-  ]
+  }
 }

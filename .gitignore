@@ -1,4 +1,40 @@
+# 환경 변수 및 설정 파일
 .env
-venv/
+.env.local
+.env.development
+.env.production
+config.json
+secrets.json
+
+# API 키 및 토큰
+**/api_keys.js
+**/tokens.js
+**/*token*.js
+**/*secret*.js
+
+# 로그 파일
+*.log
+logs/
+
+# IDE 및 에디터
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS 파일
 .DS_Store
-.env.example
+Thumbs.db
+
+# 의존성
+node_modules/
+__pycache__/
+*.pyc
+
+# 빌드 결과
+dist/
+build/
+*.zip
+
+# Railway 배포 파일
+railway.json".env" 

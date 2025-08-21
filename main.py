@@ -190,23 +190,26 @@ def increment_views(data: PageViewRequest, x_api_key: Optional[str] = Header(Non
             raise HTTPException(status_code=res.status_code, detail=error_detail)
         page = res.json()
 
-        # ✅ 부모가 DB인지, 그리고 원본 DB와 일치하는지 가드
+        # ✅ 부모가 DB인지만 확인 (원본 DB 일치 여부는 건너뛰기)
         parent = page.get("parent", {})
         if parent.get("type") != "database_id":
             raise HTTPException(status_code=400, detail="대상 페이지가 데이터베이스 행이 아닙니다.")
 
-        expected_db = None
-        if x_api_key and x_api_key in user_configs:
-            expected_db = user_configs[x_api_key].get("database_id")
-        if not expected_db and data.database_id:
-            expected_db = data.database_id
+        # ⚠️ DB ID 일치 검증 비활성화 (개발용)
+        # expected_db = None
+        # if x_api_key and x_api_key in user_configs:
+        #     expected_db = user_configs[x_api_key].get("database_id")
+        # if not expected_db and data.database_id:
+        #     expected_db = data.database_id
 
-        page_parent_db = parent.get("database_id")
-        if expected_db and page_parent_db and page_parent_db != expected_db:
-            raise HTTPException(
-                status_code=400,
-                detail=f"원본 DB({expected_db})와 페이지의 부모 DB({page_parent_db})가 다릅니다. DB 링크를 확인하세요."
-            )
+        # page_parent_db = parent.get("database_id")
+        # if expected_db and page_parent_db and page_parent_db != expected_db:
+        #     raise HTTPException(
+        #         status_code=400,
+        #         detail=f"원본 DB({expected_db})와 페이지의 부모 DB({page_parent_db})가 다릅니다. DB 링크를 확인하세요."
+        #     )
+
+        logger.info(f"[increment] DB 검증 건너뛰기 - 페이지 DB: {parent.get('database_id')}")
 
         # Views 속성 확인/증가
         props = page.get("properties", {})
@@ -247,6 +250,7 @@ def increment_views(data: PageViewRequest, x_api_key: Optional[str] = Header(Non
             "previous_views": current,
             "new_views": new_val,
             "timestamp": datetime.now().isoformat(),
+            "dev_mode": "DB 검증 비활성화됨"
         }
 
     except requests.RequestException as e:

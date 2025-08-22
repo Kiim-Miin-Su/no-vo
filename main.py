@@ -38,12 +38,27 @@ class UserConfig(BaseModel):
     notion_token: str
     database_id: Optional[str] = None
 
-# 인메모리 저장소 (운영환경에서는 DB 권장)
+# 인메모리 저장소
 user_configs: Dict[str, Dict[str, Any]] = {}
 total_view_increments = 0
 server_start_time = time.time()
 
 # 유틸리티 함수
+def normalize_page_id(page_id: str) -> str:
+    """Page ID를 Notion API가 요구하는 형태로 정규화"""
+    # 하이픈 제거
+    clean_id = page_id.replace('-', '').lower()
+    
+    # 32자리인지 확인
+    if len(clean_id) != 32:
+        raise ValueError(f"잘못된 Page ID 길이: {len(clean_id)} (32자리 필요)")
+    
+    # 하이픈 포함 형태로 변환
+    formatted_id = f"{clean_id[:8]}-{clean_id[8:12]}-{clean_id[12:16]}-{clean_id[16:20]}-{clean_id[20:]}"
+    
+    logger.info(f"[normalize] Page ID: {page_id} -> {formatted_id}")
+    return formatted_id
+
 def create_notion_headers(token: str) -> Dict[str, str]:
     return {
         "Authorization": f"Bearer {token}",
@@ -62,8 +77,8 @@ def validate_notion_token(token: Optional[str]) -> bool:
 def root():
     uptime = int(time.time() - server_start_time)
     return {
-        "message": "🎯 Notion Views API - Production",
-        "version": "1.1.0",
+        "message": "🎯 Notion Views API - Production (Page ID Fix)",
+        "version": "1.1.1",
         "uptime_seconds": uptime,
         "status": "online",
         "endpoints": {
@@ -149,18 +164,34 @@ def increment_views(data: PageViewRequest, x_api_key: Optional[str] = Header(Non
     notion_token = user_cfg["notion_token"]
     user_cfg["last_activity"] = datetime.now().isoformat()
 
+    try:
+        # Page ID 정규화
+        normalized_page_id = normalize_page_id(data.page_id)
+        logger.info(f"[increment] 정규화된 Page ID: {normalized_page_id}")
+        
+    except ValueError as e:
+        logger.error(f"[increment] Page ID 형식 오류: {e}")
+        raise HTTPException(status_code=400, detail=f"잘못된 Page ID 형식: {str(e)}")
+
     headers = create_notion_headers(notion_token)
-    page_id = data.page_id
-    url = f"https://api.notion.com/v1/pages/{page_id}"
+    url = f"https://api.notion.com/v1/pages/{normalized_page_id}"
 
     try:
-        logger.info(f"[increment] Notion API 호출 시작: {page_id}")
+        logger.info(f"[increment] Notion API 호출 시작: {normalized_page_id}")
         
         # 현재 페이지 정보 가져오기
         response = requests.get(url, headers=headers, timeout=10)
+        
+        logger.info(f"[increment] Notion API 응답: {response.status_code}")
+        
         if response.status_code != 200:
             logger.error(f"[increment] 페이지 조회 실패: {response.status_code}")
-            error_detail = response.json() if response.content else {"error": "페이지 조회 실패"}
+            # 상세 에러 정보 로깅
+            try:
+                error_detail = response.json()
+                logger.error(f"[increment] 에러 상세: {error_detail}")
+            except:
+                error_detail = {"error": f"HTTP {response.status_code}"}
             raise HTTPException(status_code=response.status_code, detail=error_detail)
 
         page = response.json()
@@ -178,7 +209,7 @@ def increment_views(data: PageViewRequest, x_api_key: Optional[str] = Header(Non
             logger.error(f"[increment] Views 속성 없음. 사용 가능한 속성: {list(properties.keys())}")
             raise HTTPException(
                 status_code=400,
-                detail="Views 속성이 없습니다. 데이터베이스에 'Views' (Number) 속성을 추가해주세요"
+                detail=f"Views 속성이 없습니다. 사용 가능한 속성: {list(properties.keys())}"
             )
 
         views_prop = properties["Views"]
@@ -210,12 +241,12 @@ def increment_views(data: PageViewRequest, x_api_key: Optional[str] = Header(Non
         total_view_increments += 1
         user_cfg["total_views"] = user_cfg.get("total_views", 0) + 1
 
-        logger.info(f"[increment] 성공: {page_id} ({current_views} -> {new_views})")
+        logger.info(f"[increment] 성공: {normalized_page_id} ({current_views} -> {new_views})")
 
         return {
             "success": True,
             "message": "✅ 조회수 증가 성공",
-            "page_id": page_id,
+            "page_id": normalized_page_id,
             "previous_views": current_views,
             "new_views": new_views,
             "timestamp": datetime.now().isoformat()

@@ -69,12 +69,15 @@ def validate_notion_token(token: Optional[str]) -> bool:
     return bool(token) and (token.startswith("ntn_") or token.startswith("secret_"))
 
 def find_views_property(properties: Dict[str, Any]) -> tuple[Optional[Dict], Optional[str]]:
-    """Views 속성을 유연하게 찾기"""
+    """Views 속성을 유연하게 찾기 (Difficulty 제외)"""
+    
+    # 제외할 속성들 (난이도, 상태 등)
+    excluded_props = ["difficulty", "status", "priority", "score", "rating", "level"]
     
     # 1. 정확한 이름으로 찾기 (우선순위)
     exact_names = ["Views", "views", "View", "view", "조회수", "ViewCount", "viewcount", "ca"]
     for prop_name in exact_names:
-        if prop_name in properties:
+        if prop_name in properties and prop_name.lower() not in excluded_props:
             prop_data = properties[prop_name]
             if prop_data.get("type") == "number":
                 logger.info(f"[find_views] ✅ 정확한 매칭으로 '{prop_name}' 속성 발견")
@@ -82,34 +85,47 @@ def find_views_property(properties: Dict[str, Any]) -> tuple[Optional[Dict], Opt
     
     # 2. 대소문자 무시하고 찾기
     for prop_name in properties.keys():
-        if prop_name.lower() in [name.lower() for name in exact_names]:
+        if (prop_name.lower() in [name.lower() for name in exact_names] and 
+            prop_name.lower() not in excluded_props):
             prop_data = properties[prop_name]
             if prop_data.get("type") == "number":
                 logger.info(f"[find_views] ✅ 대소문자 무시 매칭으로 '{prop_name}' 속성 발견")
                 return prop_data, prop_name
     
-    # 3. 부분 매칭으로 찾기 (view, 조회 포함)
+    # 3. 부분 매칭으로 찾기 (view, 조회 포함하지만 제외 목록은 피함)
     for prop_name in properties.keys():
-        if any(keyword in prop_name.lower() for keyword in ['view', '조회', 'count']):
+        if (any(keyword in prop_name.lower() for keyword in ['view', '조회', 'count']) and
+            prop_name.lower() not in excluded_props):
             prop_data = properties[prop_name]
             if prop_data.get("type") == "number":
                 logger.info(f"[find_views] ✅ 부분 매칭으로 '{prop_name}' 속성 발견")
                 return prop_data, prop_name
     
-    # 4. Number 타입 속성이 하나뿐이면 그것을 사용
-    number_props = {name: prop for name, prop in properties.items() if prop.get("type") == "number"}
-    if len(number_props) == 1:
-        prop_name = list(number_props.keys())[0]
-        prop_data = number_props[prop_name]
-        logger.info(f"[find_views] ✅ 유일한 Number 속성 '{prop_name}' 사용")
+    # 4. 안전한 Number 속성만 사용 (제외 목록에 없는 것)
+    safe_number_props = {}
+    for name, prop in properties.items():
+        if (prop.get("type") == "number" and 
+            name.lower() not in excluded_props and
+            not any(ex in name.lower() for ex in excluded_props)):
+            safe_number_props[name] = prop
+    
+    if len(safe_number_props) == 1:
+        prop_name = list(safe_number_props.keys())[0]
+        prop_data = safe_number_props[prop_name]
+        logger.info(f"[find_views] ✅ 안전한 Number 속성 '{prop_name}' 사용")
         return prop_data, prop_name
-    elif len(number_props) > 1:
-        logger.info(f"[find_views] 여러 Number 속성 발견: {list(number_props.keys())}")
-        # 첫 번째 Number 속성 사용
-        prop_name = list(number_props.keys())[0]
-        prop_data = number_props[prop_name]
-        logger.info(f"[find_views] ⚠️ 첫 번째 Number 속성 '{prop_name}' 사용")
-        return prop_data, prop_name
+    elif len(safe_number_props) > 1:
+        logger.info(f"[find_views] 여러 안전한 Number 속성 발견: {list(safe_number_props.keys())}")
+        # ca를 우선으로
+        if "ca" in safe_number_props:
+            logger.info(f"[find_views] ⚠️ 'ca' 속성을 조회수로 사용")
+            return safe_number_props["ca"], "ca"
+        else:
+            # 첫 번째 안전한 속성 사용
+            prop_name = list(safe_number_props.keys())[0]
+            prop_data = safe_number_props[prop_name]
+            logger.info(f"[find_views] ⚠️ 첫 번째 안전한 속성 '{prop_name}' 사용")
+            return prop_data, prop_name
     
     return None, None
 

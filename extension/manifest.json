@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Notion Views Tracker",
   "version": "1.1.0",
-  "description": "Notion 데이터베이스 페이지 조회수 추적 (CSP 우회 버전)",
+  "description": "Notion 데이터베이스 페이지 조회수 추적",
   
   "permissions": [
     "storage",
@@ -13,8 +13,7 @@
     "https://*.notion.so/*",
     "https://*.notion.site/*",
     "https://*.notion.com/*",
-    "https://web-production-ee075.up.railway.app/*",
-    "https://*.railway.app/*"
+    "https://web-production-ee075.up.railway.app/*"
   ],
   
   "background": {

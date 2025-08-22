@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 
 import requests
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -16,8 +16,8 @@ logger = logging.getLogger("notion-views")
 
 app = FastAPI(
     title="Notion Views API",
-    description="Notion 데이터베이스 페이지 조회수 추적 API",
-    version="1.1.0",
+    description="Notion 데이터베이스 페이지 조회수 추적 API (유연한 속성 지원)",
+    version="1.2.0",
 )
 
 # CORS 설정
@@ -46,16 +46,12 @@ server_start_time = time.time()
 # 유틸리티 함수
 def normalize_page_id(page_id: str) -> str:
     """Page ID를 Notion API가 요구하는 형태로 정규화"""
-    # 하이픈 제거
     clean_id = page_id.replace('-', '').lower()
     
-    # 32자리인지 확인
     if len(clean_id) != 32:
         raise ValueError(f"잘못된 Page ID 길이: {len(clean_id)} (32자리 필요)")
     
-    # 하이픈 포함 형태로 변환
     formatted_id = f"{clean_id[:8]}-{clean_id[8:12]}-{clean_id[12:16]}-{clean_id[16:20]}-{clean_id[20:]}"
-    
     logger.info(f"[normalize] Page ID: {page_id} -> {formatted_id}")
     return formatted_id
 
@@ -72,15 +68,61 @@ def generate_api_key(notion_token: str) -> str:
 def validate_notion_token(token: Optional[str]) -> bool:
     return bool(token) and (token.startswith("ntn_") or token.startswith("secret_"))
 
+def find_views_property(properties: Dict[str, Any]) -> tuple[Optional[Dict], Optional[str]]:
+    """Views 속성을 유연하게 찾기"""
+    
+    # 1. 정확한 이름으로 찾기 (우선순위)
+    exact_names = ["Views", "views", "View", "view", "조회수", "ViewCount", "viewcount", "ca"]
+    for prop_name in exact_names:
+        if prop_name in properties:
+            prop_data = properties[prop_name]
+            if prop_data.get("type") == "number":
+                logger.info(f"[find_views] ✅ 정확한 매칭으로 '{prop_name}' 속성 발견")
+                return prop_data, prop_name
+    
+    # 2. 대소문자 무시하고 찾기
+    for prop_name in properties.keys():
+        if prop_name.lower() in [name.lower() for name in exact_names]:
+            prop_data = properties[prop_name]
+            if prop_data.get("type") == "number":
+                logger.info(f"[find_views] ✅ 대소문자 무시 매칭으로 '{prop_name}' 속성 발견")
+                return prop_data, prop_name
+    
+    # 3. 부분 매칭으로 찾기 (view, 조회 포함)
+    for prop_name in properties.keys():
+        if any(keyword in prop_name.lower() for keyword in ['view', '조회', 'count']):
+            prop_data = properties[prop_name]
+            if prop_data.get("type") == "number":
+                logger.info(f"[find_views] ✅ 부분 매칭으로 '{prop_name}' 속성 발견")
+                return prop_data, prop_name
+    
+    # 4. Number 타입 속성이 하나뿐이면 그것을 사용
+    number_props = {name: prop for name, prop in properties.items() if prop.get("type") == "number"}
+    if len(number_props) == 1:
+        prop_name = list(number_props.keys())[0]
+        prop_data = number_props[prop_name]
+        logger.info(f"[find_views] ✅ 유일한 Number 속성 '{prop_name}' 사용")
+        return prop_data, prop_name
+    elif len(number_props) > 1:
+        logger.info(f"[find_views] 여러 Number 속성 발견: {list(number_props.keys())}")
+        # 첫 번째 Number 속성 사용
+        prop_name = list(number_props.keys())[0]
+        prop_data = number_props[prop_name]
+        logger.info(f"[find_views] ⚠️ 첫 번째 Number 속성 '{prop_name}' 사용")
+        return prop_data, prop_name
+    
+    return None, None
+
 # 라우트
 @app.get("/")
 def root():
     uptime = int(time.time() - server_start_time)
     return {
-        "message": "🎯 Notion Views API - Production (Page ID Fix)",
-        "version": "1.1.1",
+        "message": "🎯 Notion Views API - Flexible Property Support",
+        "version": "1.2.0",
         "uptime_seconds": uptime,
         "status": "online",
+        "supported_properties": ["Views", "views", "View", "view", "조회수", "ViewCount", "ca"],
         "endpoints": {
             "register": "POST /register",
             "increment": "POST /increment_views",
@@ -96,7 +138,8 @@ def health_check():
         "timestamp": datetime.now().isoformat(),
         "uptime": int(time.time() - server_start_time),
         "total_users": len(user_configs),
-        "total_views": total_view_increments
+        "total_views": total_view_increments,
+        "version": "1.2.0"
     }
 
 @app.post("/register")
@@ -139,8 +182,9 @@ def register_user(config: UserConfig):
             "message": "✅ 사용자 등록 완료",
             "instructions": {
                 "1": "확장프로그램에 이 API 키를 입력하세요",
-                "2": "Notion 데이터베이스에 'Views' (Number) 속성을 추가하세요",
-                "3": "데이터베이스를 Notion 통합에 연결하세요"
+                "2": "Notion 데이터베이스에 'Views' (Number) 속성을 추가하거나",
+                "3": "기존 Number 속성이 자동으로 사용됩니다",
+                "4": "데이터베이스를 Notion 통합에 연결하세요"
             }
         }
 
@@ -181,12 +225,10 @@ def increment_views(data: PageViewRequest, x_api_key: Optional[str] = Header(Non
         
         # 현재 페이지 정보 가져오기
         response = requests.get(url, headers=headers, timeout=10)
-        
         logger.info(f"[increment] Notion API 응답: {response.status_code}")
         
         if response.status_code != 200:
             logger.error(f"[increment] 페이지 조회 실패: {response.status_code}")
-            # 상세 에러 정보 로깅
             try:
                 error_detail = response.json()
                 logger.error(f"[increment] 에러 상세: {error_detail}")
@@ -203,31 +245,36 @@ def increment_views(data: PageViewRequest, x_api_key: Optional[str] = Header(Non
             logger.warning(f"[increment] 데이터베이스 페이지가 아님: {parent.get('type')}")
             raise HTTPException(status_code=400, detail="대상 페이지가 데이터베이스 행이 아닙니다")
 
-        # Views 속성 확인
+        # 모든 속성 정보 로깅
         properties = page.get("properties", {})
-        if "Views" not in properties:
-            logger.error(f"[increment] Views 속성 없음. 사용 가능한 속성: {list(properties.keys())}")
+        logger.info(f"[increment] 페이지의 모든 속성: {list(properties.keys())}")
+        
+        # 각 속성의 타입 정보 로깅
+        for prop_name, prop_data in properties.items():
+            logger.info(f"[increment] 속성 '{prop_name}': 타입={prop_data.get('type')}")
+
+        # Views 속성을 유연하게 찾기
+        view_prop, actual_prop_name = find_views_property(properties)
+        
+        if not view_prop:
+            number_props = [name for name, prop in properties.items() if prop.get("type") == "number"]
+            logger.error(f"[increment] 사용할 수 있는 Number 속성이 없음. Number 속성들: {number_props}")
             raise HTTPException(
                 status_code=400,
-                detail=f"Views 속성이 없습니다. 사용 가능한 속성: {list(properties.keys())}"
+                detail=f"Views, ca 또는 다른 Number 타입 속성이 없습니다. 사용 가능한 속성: {list(properties.keys())}. Number 속성을 추가하거나 기존 속성 타입을 Number로 변경해주세요."
             )
 
-        views_prop = properties["Views"]
-        if views_prop.get("type") not in ["number", "ca"]:
-            logger.error(f"[increment] Views 속성 타입 오류: {views_prop.get('type')}")
-            raise HTTPException(status_code=400, detail="Views 속성은 Number 타입이어야 합니다")
-
         # 현재 조회수 가져오기
-        current_views = views_prop.get("number") or 0
+        current_views = view_prop.get("number") or 0
         new_views = current_views + 1
 
-        logger.info(f"[increment] 조회수 업데이트: {current_views} -> {new_views}")
+        logger.info(f"[increment] 조회수 업데이트 (속성: '{actual_prop_name}'): {current_views} -> {new_views}")
 
-        # 조회수 업데이트
+        # 조회수 업데이트 (실제 속성 이름 사용)
         update_response = requests.patch(
             url,
             headers=headers,
-            json={"properties": {"Views": {"number": new_views}}},
+            json={"properties": {actual_prop_name: {"number": new_views}}},
             timeout=10,
         )
 
@@ -241,12 +288,13 @@ def increment_views(data: PageViewRequest, x_api_key: Optional[str] = Header(Non
         total_view_increments += 1
         user_cfg["total_views"] = user_cfg.get("total_views", 0) + 1
 
-        logger.info(f"[increment] 성공: {normalized_page_id} ({current_views} -> {new_views})")
+        logger.info(f"[increment] 성공: {normalized_page_id} (속성: {actual_prop_name}, {current_views} -> {new_views})")
 
         return {
             "success": True,
-            "message": "✅ 조회수 증가 성공",
+            "message": f"✅ 조회수 증가 성공 (속성: {actual_prop_name})",
             "page_id": normalized_page_id,
+            "property_used": actual_prop_name,
             "previous_views": current_views,
             "new_views": new_views,
             "timestamp": datetime.now().isoformat()
@@ -277,6 +325,7 @@ def get_stats():
             "total_views": total_view_increments,
             "total_user_views": total_user_views,
             "uptime_hours": round((time.time() - server_start_time) / 3600, 1),
+            "version": "1.2.0",
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
@@ -286,5 +335,5 @@ def get_stats():
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8000))
-    logger.info(f"서버 시작: 포트 {port}")
+    logger.info(f"서버 시작: 포트 {port} (유연한 속성 지원)")
     uvicorn.run(app, host="0.0.0.0", port=port)

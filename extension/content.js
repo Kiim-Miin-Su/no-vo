@@ -173,20 +173,37 @@ class NotionViewsTracker {
         return id;
     }
 
+    // content.js의 isPossiblyDbItem 함수만 수정
+
     isPossiblyDbItem() {
         if (!(location.hostname.includes('notion.so') || location.hostname.includes('notion.site') || location.hostname.includes('notion.com'))) {
             console.log('❌ Notion 도메인이 아님');
             return false;
         }
 
-        // 1. URL 기반 판단 - 현재 페이지가 특정 페이지 ID를 가지고 있는지
+        // 1. URL 기반 판단 - 더 유연한 페이지 ID 매칭
         const currentUrl = window.location.href;
-        const hasPageId = /\/[a-f0-9]{32}(\?|$)|\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}(\?|$)/.test(currentUrl);
+
+        // 다양한 Notion URL 형태 지원
+        const urlPatterns = [
+            // 기본 형태: /24e892e264b98016824bf74d13a56ad6
+            /\/[a-f0-9]{32}(\?|$)/i,
+            // 하이픈 포함: /24e892e2-64b9-8016-824b-f74d13a56ad6  
+            /\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}(\?|$)/i,
+            // 제목-ID 형태: /Linux-24de54b2d72f808fb2cfe6f47cf1876a
+            /\/[^\/]*-[a-f0-9]{32}(\?|$)/i,
+            // 제목-ID 하이픈 형태: /Linux-24e892e2-64b9-8016-824b-f74d13a56ad6
+            /\/[^\/]*-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}(\?|$)/i
+        ];
+
+        const hasPageId = urlPatterns.some(pattern => pattern.test(currentUrl));
 
         if (!hasPageId) {
-            console.log('❌ URL에 페이지 ID 없음');
+            console.log('❌ URL에서 유효한 페이지 ID 패턴을 찾을 수 없음:', currentUrl);
             return false;
         }
+
+        console.log('✅ URL에서 페이지 ID 패턴 발견:', currentUrl);
 
         // 2. DOM 기반 판단 - 더 광범위한 선택자 사용
         const dbIndicators = [
@@ -246,17 +263,24 @@ class NotionViewsTracker {
         const pageContent = document.querySelector('.notion-page-content');
         const hasPageContent = !!pageContent;
 
-        // 4. 최종 판단
+        // 4. 더 관대한 최종 판단
+        // URL에 페이지 ID가 있고, DOM 요소가 하나라도 있거나 페이지 콘텐츠가 있으면 DB 아이템으로 간주
         const isDbItem = hasPageId && (foundCount > 0 || hasPageContent);
+
+        // 5. URL 기반으로만 판단하는 폴백 (DOM이 아직 로드되지 않았을 수 있음)
+        const isLikelyDbPage = hasPageId && currentUrl.includes('-') && /[a-f0-9]{32}/.test(currentUrl);
+
+        const finalDecision = isDbItem || isLikelyDbPage;
 
         console.log('🏷️ 최종 DB 아이템 판단:', {
             hasPageId,
             foundCount,
             hasPageContent,
-            결과: isDbItem ? '✅ DB 아이템' : '❌ 일반 페이지'
+            isLikelyDbPage,
+            결과: finalDecision ? '✅ DB 아이템' : '❌ 일반 페이지'
         });
 
-        return isDbItem;
+        return finalDecision;
     }
 
     // Background Script를 통한 조회수 추적

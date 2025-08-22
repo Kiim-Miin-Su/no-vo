@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Notion Views Tracker",
   "version": "1.1.0",
-  "description": "Track page views in Notion databases",
+  "description": "Notion 데이터베이스 페이지 조회수 추적 (CSP 우회 버전)",
   
   "permissions": [
     "storage",
@@ -10,26 +10,37 @@
   ],
   
   "host_permissions": [
-    "https://www.notion.so/*",
     "https://*.notion.so/*",
-    "https://notion.so/*",
-    "https://web-production-ee075.up.railway.app/*"
+    "https://*.notion.site/*",
+    "https://*.notion.com/*",
+    "https://web-production-ee075.up.railway.app/*",
+    "https://*.railway.app/*"
   ],
+  
+  "background": {
+    "service_worker": "background.js"
+  },
   
   "content_scripts": [
     {
       "matches": [
-        "https://www.notion.so/*",
         "https://*.notion.so/*",
-        "https://notion.so/*"
+        "https://*.notion.site/*",
+        "https://*.notion.com/*"
       ],
       "js": ["content.js"],
-      "run_at": "document_end"
+      "run_at": "document_idle"
     }
   ],
   
   "action": {
     "default_popup": "popup.html",
     "default_title": "Notion Views Tracker"
+  },
+  
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   }
 }

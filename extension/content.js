@@ -1,4 +1,5 @@
-// content.js - Background Script 없이 직접 API 호출
+// content.js - CSP 우회를 위해 Background Script 사용
+
 class NotionViewsTracker {
     constructor() {
         this.apiEndpoint = 'https://web-production-ee075.up.railway.app';
@@ -11,7 +12,7 @@ class NotionViewsTracker {
     }
 
     async init() {
-        console.log('🎯 Notion Views Tracker 초기화 시작');
+        console.log('🎯 Notion Views Tracker 초기화 (Background Script 버전)');
 
         try {
             await this.loadSettings();
@@ -30,11 +31,16 @@ class NotionViewsTracker {
                 });
             }
 
+            // 연결 테스트
+            if (this.apiEndpoint && this.isEnabled) {
+                await this.testConnection();
+            }
+
             this.checkCurrentPage();
             this.observeUrlChanges();
             this.observeClicks();
 
-            console.log('🎯 Notion Views Tracker 활성화됨');
+            console.log('🎯 Notion Views Tracker 활성화됨 (CSP 우회)');
             console.log('⚙️ 설정:', {
                 apiEndpoint: this.apiEndpoint,
                 hasApiKey: !!this.apiKey,
@@ -82,6 +88,31 @@ class NotionViewsTracker {
         }
     }
 
+    // Background Script를 통한 연결 테스트
+    async testConnection() {
+        try {
+            console.log('🧪 Background Script를 통한 연결 테스트');
+
+            const response = await this.sendMessageToBackground('testConnection', {
+                apiEndpoint: this.apiEndpoint
+            });
+
+            if (response.success) {
+                console.log('✅ 연결 테스트 성공:', response.data);
+                this.showNotification('✅ API 서버 연결 성공', 'success');
+                return true;
+            } else {
+                console.error('❌ 연결 테스트 실패:', response.error);
+                this.showNotification(`❌ 연결 실패: ${response.error}`, 'error');
+                return false;
+            }
+        } catch (error) {
+            console.error('💥 연결 테스트 오류:', error);
+            this.showNotification('🔌 연결 테스트 실패', 'error');
+            return false;
+        }
+    }
+
     checkCurrentPage() {
         try {
             if (!this.isEnabled || !this.apiEndpoint) {
@@ -100,7 +131,7 @@ class NotionViewsTracker {
             });
 
             if (pageId && this.isPossiblyDbItem() && !this.trackedPages.has(pageId)) {
-                console.log('📊 조회수 추적 시작');
+                console.log('📊 조회수 추적 시작 (Background Script 사용)');
                 this.trackView(pageId);
             }
         } catch (error) {
@@ -161,6 +192,7 @@ class NotionViewsTracker {
         return found;
     }
 
+    // Background Script를 통한 조회수 추적
     async trackView(pageId) {
         if (this.trackedPages.has(pageId)) {
             console.log('⏭️ 이미 추적된 페이지:', pageId);
@@ -168,40 +200,17 @@ class NotionViewsTracker {
         }
 
         try {
-            const headers = { 'Content-Type': 'application/json' };
-            const body = { page_id: pageId };
+            console.log('🚀 Background Script를 통한 조회수 증가 요청');
 
-            // API 키 또는 Notion 토큰 사용
-            if (this.apiKey) {
-                headers['X-API-Key'] = this.apiKey;
-            } else {
-                // 개발용: 설정에서 토큰 가져오기 (하드코딩 금지)
-                // TODO: 실제 배포시 환경변수나 설정 파일에서 가져올 것
-                console.warn('⚠️ API 키 없음 - 직접 토큰 사용 (개발용)');
-                // 임시로 환경변수나 설정에서 가져오도록 수정 필요
-            }
-
-            // ⚠️ 개발용: database_id 검증 비활성화
-            // if (this.databaseId) body.database_id = this.databaseId;
-
-            console.log('🚀 API 요청 시작:', {
-                endpoint: `${this.apiEndpoint}/increment_views`,
+            const response = await this.sendMessageToBackground('incrementViews', {
+                apiEndpoint: this.apiEndpoint,
+                apiKey: this.apiKey,
                 pageId: pageId,
-                hasApiKey: !!this.apiKey,
-                hasNotionToken: !!body.notion_token,
                 databaseId: this.databaseId
             });
 
-            const response = await fetch(`${this.apiEndpoint}/increment_views`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(body)
-            });
-
-            console.log('📡 API 응답:', response.status, response.statusText);
-
-            if (response.ok) {
-                const result = await response.json();
+            if (response.success) {
+                const result = response.data;
                 this.trackedPages.add(pageId);
                 this.showNotification(`✅ 조회수 증가: ${result.new_views}`, 'success');
                 console.log('🎯 조회수 추적 성공:', result);
@@ -212,14 +221,30 @@ class NotionViewsTracker {
                     await chrome.storage.sync.set({ lastTracked: new Date().toISOString() });
                 }
             } else {
-                const errText = await response.text().catch(() => '');
-                console.error('❌ 조회수 추적 실패:', response.status, errText);
-                this.showNotification(`❌ 조회수 추적 실패 (${response.status})`, 'error');
+                console.error('❌ 조회수 추적 실패:', response.error);
+                this.showNotification(`❌ ${response.error}`, 'error');
             }
+
         } catch (error) {
-            console.error('💥 API 호출 오류:', error);
-            this.showNotification('🔌 API 서버 연결 실패', 'error');
+            console.error('💥 Background Script 통신 오류:', error);
+            this.showNotification('💥 시스템 오류', 'error');
         }
+    }
+
+    // Background Script와 통신하는 헬퍼 함수
+    async sendMessageToBackground(action, data) {
+        return new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage(
+                { action: action, data: data },
+                (response) => {
+                    if (chrome.runtime.lastError) {
+                        reject(chrome.runtime.lastError);
+                    } else {
+                        resolve(response);
+                    }
+                }
+            );
+        });
     }
 
     observeUrlChanges() {
@@ -331,15 +356,15 @@ class NotionViewsTracker {
 
 // 초기화
 if (window.location.hostname.includes('notion')) {
-    console.log('🌐 Notion 페이지 감지');
+    console.log('🌐 Notion 페이지 감지 (Background Script 버전)');
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('📄 DOM 로드 완료 - 트래커 시작');
+            console.log('📄 DOM 로드 완료 - Background Script 트래커 시작');
             window.notionTracker = new NotionViewsTracker();
         });
     } else {
-        console.log('📄 DOM 이미 로드됨 - 트래커 시작');
+        console.log('📄 DOM 이미 로드됨 - Background Script 트래커 시작');
         window.notionTracker = new NotionViewsTracker();
     }
 } else {

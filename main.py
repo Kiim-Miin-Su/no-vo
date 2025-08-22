@@ -213,7 +213,7 @@ def increment_views(data: PageViewRequest, x_api_key: Optional[str] = Header(Non
             )
 
         views_prop = properties["Views"]
-        if views_prop.get("type") != "number":
+        if views_prop.get("type") not in ["number", "ca"]:
             logger.error(f"[increment] Views 속성 타입 오류: {views_prop.get('type')}")
             raise HTTPException(status_code=400, detail="Views 속성은 Number 타입이어야 합니다")
 

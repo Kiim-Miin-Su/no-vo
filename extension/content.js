@@ -1,4 +1,4 @@
-// content.js - CSP 우회를 위해 Background Script 사용
+// content.js - 완전한 작동 버전 (Background Script + 개선된 DB 인식)
 
 class NotionViewsTracker {
     constructor() {
@@ -12,7 +12,7 @@ class NotionViewsTracker {
     }
 
     async init() {
-        console.log('🎯 Notion Views Tracker 초기화 (Background Script 버전)');
+        console.log('🎯 Notion Views Tracker 초기화 (완전 버전)');
 
         try {
             await this.loadSettings();
@@ -40,7 +40,7 @@ class NotionViewsTracker {
             this.observeUrlChanges();
             this.observeClicks();
 
-            console.log('🎯 Notion Views Tracker 활성화됨 (CSP 우회)');
+            console.log('🎯 Notion Views Tracker 활성화됨');
             console.log('⚙️ 설정:', {
                 apiEndpoint: this.apiEndpoint,
                 hasApiKey: !!this.apiKey,
@@ -175,21 +175,88 @@ class NotionViewsTracker {
 
     isPossiblyDbItem() {
         if (!(location.hostname.includes('notion.so') || location.hostname.includes('notion.site') || location.hostname.includes('notion.com'))) {
+            console.log('❌ Notion 도메인이 아님');
             return false;
         }
 
-        // 더 정확한 선택자들 사용
-        const indicators = [
-            document.querySelector('[data-testid="properties"]'),
-            document.querySelector('[placeholder="Add a property"]'),
-            document.querySelector('.notion-collection-item'),
-            document.querySelector('[role="row"]'),
-            document.querySelector('.notion-page-content .notion-collection-item')
+        // 1. URL 기반 판단 - 현재 페이지가 특정 페이지 ID를 가지고 있는지
+        const currentUrl = window.location.href;
+        const hasPageId = /\/[a-f0-9]{32}(\?|$)|\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}(\?|$)/.test(currentUrl);
+
+        if (!hasPageId) {
+            console.log('❌ URL에 페이지 ID 없음');
+            return false;
+        }
+
+        // 2. DOM 기반 판단 - 더 광범위한 선택자 사용
+        const dbIndicators = [
+            // Properties 패널
+            '[data-testid="properties"]',
+            '[placeholder="Add a property"]',
+            '.notion-page-content [role="table"]',
+
+            // Collection 관련
+            '.notion-collection-item',
+            '.notion-collection-view',
+
+            // Table/Database 관련
+            '[role="row"]',
+            '[role="cell"]',
+            '.notion-table_view',
+
+            // 새로운 Notion UI
+            '[data-testid="page-header"]',
+            '[data-testid="page-properties"]',
+
+            // Property 관련 요소들
+            '.notion-property',
+            '.property-',
+            '[class*="property"]',
+
+            // 페이지 타이틀과 메타 정보
+            '.notion-page-block',
+            '.notion-page-content',
+
+            // 더 일반적인 데이터베이스 페이지 표시자
+            '[class*="database"]',
+            '[class*="collection"]',
+            '[data-block-id]'
         ];
 
-        const found = indicators.some(el => !!el);
-        console.log('🏷️ DB 아이템 인식:', found);
-        return found;
+        const foundElements = [];
+        let foundCount = 0;
+
+        for (const selector of dbIndicators) {
+            const elements = document.querySelectorAll(selector);
+            if (elements.length > 0) {
+                foundElements.push(`${selector}: ${elements.length}개`);
+                foundCount++;
+            }
+        }
+
+        console.log('🔍 DB 표시자 검색 결과:', {
+            url: currentUrl,
+            hasPageId,
+            foundCount,
+            foundElements: foundElements.slice(0, 5), // 처음 5개만 표시
+            totalSelectors: dbIndicators.length
+        });
+
+        // 3. 페이지 타입 추가 확인
+        const pageContent = document.querySelector('.notion-page-content');
+        const hasPageContent = !!pageContent;
+
+        // 4. 최종 판단
+        const isDbItem = hasPageId && (foundCount > 0 || hasPageContent);
+
+        console.log('🏷️ 최종 DB 아이템 판단:', {
+            hasPageId,
+            foundCount,
+            hasPageContent,
+            결과: isDbItem ? '✅ DB 아이템' : '❌ 일반 페이지'
+        });
+
+        return isDbItem;
     }
 
     // Background Script를 통한 조회수 추적
@@ -245,6 +312,80 @@ class NotionViewsTracker {
                 }
             );
         });
+    }
+
+    // 수동 테스트 함수들
+    async forceTrackView() {
+        const pageId = this.extractPageId(window.location.href);
+        if (!pageId) {
+            console.error('❌ 페이지 ID를 찾을 수 없습니다');
+            this.showNotification('❌ 페이지 ID 없음', 'error');
+            return;
+        }
+
+        console.log('🚀 수동 조회수 추적 강제 실행:', pageId);
+        this.showNotification('🚀 수동 추적 시작...', 'info');
+
+        await this.trackView(pageId);
+    }
+
+    debugDOM() {
+        console.log('🔍 DOM 디버깅 시작');
+
+        const allSelectors = [
+            '[data-testid="properties"]',
+            '[placeholder="Add a property"]',
+            '.notion-collection-item',
+            '[role="row"]',
+            '[role="cell"]',
+            '.notion-page-content',
+            '[data-testid="page-header"]',
+            '.notion-property',
+            '[class*="property"]',
+            '[class*="database"]',
+            '[data-block-id]'
+        ];
+
+        const results = {};
+        let totalFound = 0;
+
+        allSelectors.forEach(selector => {
+            const elements = document.querySelectorAll(selector);
+            results[selector] = elements.length;
+            totalFound += elements.length;
+
+            if (elements.length > 0) {
+                console.log(`✅ ${selector}: ${elements.length}개`, elements[0]);
+            }
+        });
+
+        console.log('📊 DOM 검색 결과 요약:', {
+            totalSelectors: allSelectors.length,
+            totalElements: totalFound,
+            results
+        });
+
+        return results;
+    }
+
+    showPageInfo() {
+        const info = {
+            url: window.location.href,
+            hostname: window.location.hostname,
+            pageId: this.extractPageId(window.location.href),
+            isDbItem: this.isPossiblyDbItem(),
+            settings: {
+                apiEndpoint: this.apiEndpoint,
+                hasApiKey: !!this.apiKey,
+                databaseId: this.databaseId,
+                isEnabled: this.isEnabled
+            }
+        };
+
+        console.log('📄 페이지 정보:', info);
+        this.showNotification(`페이지: ${info.isDbItem ? 'DB 아이템' : '일반 페이지'}`, 'info');
+
+        return info;
     }
 
     observeUrlChanges() {
@@ -356,15 +497,15 @@ class NotionViewsTracker {
 
 // 초기화
 if (window.location.hostname.includes('notion')) {
-    console.log('🌐 Notion 페이지 감지 (Background Script 버전)');
+    console.log('🌐 Notion 페이지 감지 (완전 버전)');
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('📄 DOM 로드 완료 - Background Script 트래커 시작');
+            console.log('📄 DOM 로드 완료 - 트래커 시작');
             window.notionTracker = new NotionViewsTracker();
         });
     } else {
-        console.log('📄 DOM 이미 로드됨 - Background Script 트래커 시작');
+        console.log('📄 DOM 이미 로드됨 - 트래커 시작');
         window.notionTracker = new NotionViewsTracker();
     }
 } else {
